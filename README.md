@@ -8,7 +8,8 @@ WebView 默认会直接取消这种请求，所以客户端接管了认证流程
 - WebView 加载站点，开启 JS / DOM Storage / Cookie 持久化
 - HTTP Basic 认证：`onReceivedHttpAuthRequest` 接管，首次打开弹窗输入账号
 - 凭据存本机 `SharedPreferences`（应用私有目录），**不写进代码、不进仓库**
-- 返回键优先回退网页历史
+- 返回：站内 SPA 不写浏览器历史，所以做了三层回退——先点站内 `#backBtn`，
+  再退 WebView 历史，都没有才退出；菜单里另有 后退 / 前进 / 回首页
 - 顶部细进度条、断网重试页
 - 站内链接留在 WebView，站外链接 / `mailto:` / `tel:` 交给系统
 - 菜单：清除已保存的账号、重新加载

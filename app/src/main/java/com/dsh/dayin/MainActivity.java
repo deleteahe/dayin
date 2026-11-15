@@ -8,6 +8,8 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -22,6 +24,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
@@ -51,6 +54,20 @@ public class MainActivity extends Activity {
     private SharedPreferences prefs;
     /** 同一次页面加载内，避免用错密码无限重试 */
     private boolean credentialTried = false;
+    /** 防止连击返回导致连退两级 */
+    private boolean backPending = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    /** 点击站内自己的返回按钮；返回 clicked / hidden / no / err */
+    private static final String JS_CLICK_SITE_BACK =
+            "(function(){try{"
+                    + "var b=document.getElementById('backBtn');"
+                    + "if(!b)return 'no';"
+                    + "var r=b.getBoundingClientRect();"
+                    + "var s=window.getComputedStyle(b);"
+                    + "if(r.width<=0||r.height<=0||s.display==='none'||s.visibility==='hidden')return 'hidden';"
+                    + "b.click();return 'clicked';"
+                    + "}catch(e){return 'err';}})()";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,7 +106,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(true);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
-        s.setUserAgentString(s.getUserAgentString() + " DayinWebShell/1.1");
+        s.setUserAgentString(s.getUserAgentString() + " DayinWebShell/1.2");
 
         webView.setWebViewClient(new WebViewClient() {
 
@@ -298,32 +315,112 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(0, 1, 0, "清除已保存的账号");
-        menu.add(0, 2, 0, "重新加载");
+        menu.add(0, 1, 0, "后退");
+        menu.add(0, 2, 1, "前进");
+        menu.add(0, 3, 2, "回首页");
+        menu.add(0, 4, 3, "重新加载");
+        menu.add(0, 5, 4, "清除已保存的账号");
         return true;
     }
 
     @Override
+    public boolean onPrepareOptionsMenu(Menu menu) {
+        MenuItem forward = menu.findItem(2);
+        if (forward != null) {
+            forward.setEnabled(webView != null && webView.canGoForward());
+        }
+        return super.onPrepareOptionsMenu(menu);
+    }
+
+    @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == 1) {
-            prefs.edit().clear().apply();
-            credentialTried = false;
-            toast("已清除，正在重新加载");
-            webView.reload();
-            return true;
+        switch (item.getItemId()) {
+            case 1:
+                goBackSmart();
+                return true;
+            case 2:
+                if (webView != null && webView.canGoForward()) {
+                    webView.goForward();
+                } else {
+                    toast("没有可前进的页面");
+                }
+                return true;
+            case 3:
+                credentialTried = false;
+                if (webView != null) {
+                    webView.loadUrl(getString(R.string.start_url));
+                }
+                return true;
+            case 4:
+                credentialTried = false;
+                if (webView != null) {
+                    webView.reload();
+                }
+                return true;
+            case 5:
+                prefs.edit().clear().apply();
+                credentialTried = false;
+                toast("已清除，正在重新加载");
+                if (webView != null) {
+                    webView.reload();
+                }
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
         }
-        if (item.getItemId() == 2) {
-            credentialTried = false;
-            webView.reload();
-            return true;
+    }
+
+    /**
+     * 统一的"返回"动作。
+     *
+     * 这个站点是纯 JS 切换视图的 SPA，不写 history，所以 WebView 的 canGoBack()
+     * 永远是 false。真正的"上一级"是站内自己的 #backBtn，因此顺序是：
+     *   1. 站内 #backBtn 可见 -> 点它；
+     *   2. 否则 WebView 有历史 -> goBack()；
+     *   3. 都没有 -> 退出。
+     */
+    private void goBackSmart() {
+        if (webView == null) {
+            finish();
+            return;
         }
-        return super.onOptionsItemSelected(item);
+        if (backPending) {
+            return;
+        }
+        backPending = true;
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                backPending = false;
+            }
+        }, 500);
+
+        webView.evaluateJavascript(JS_CLICK_SITE_BACK, new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String value) {
+                if (value != null && value.contains("clicked")) {
+                    return;
+                }
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                    return;
+                }
+                finish();
+            }
+        });
+    }
+
+    @Override
+    public void onBackPressed() {
+        goBackSmart();
     }
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView != null && webView.canGoBack()) {
-            webView.goBack();
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.getRepeatCount() == 0) {
+                goBackSmart();
+            }
             return true;
         }
         return super.onKeyDown(keyCode, event);
