@@ -13,8 +13,6 @@ import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.HttpAuthHandler;
@@ -311,63 +309,6 @@ public class MainActivity extends Activity {
         }
         errorView.setVisibility(View.VISIBLE);
         progress.setVisibility(View.GONE);
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        menu.add(0, 1, 0, "后退");
-        menu.add(0, 2, 1, "前进");
-        menu.add(0, 3, 2, "回首页");
-        menu.add(0, 4, 3, "重新加载");
-        menu.add(0, 5, 4, "清除已保存的账号");
-        return true;
-    }
-
-    @Override
-    public boolean onPrepareOptionsMenu(Menu menu) {
-        MenuItem forward = menu.findItem(2);
-        if (forward != null) {
-            forward.setEnabled(webView != null && webView.canGoForward());
-        }
-        return super.onPrepareOptionsMenu(menu);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case 1:
-                goBackSmart();
-                return true;
-            case 2:
-                if (webView != null && webView.canGoForward()) {
-                    webView.goForward();
-                } else {
-                    toast("没有可前进的页面");
-                }
-                return true;
-            case 3:
-                credentialTried = false;
-                if (webView != null) {
-                    webView.loadUrl(getString(R.string.start_url));
-                }
-                return true;
-            case 4:
-                credentialTried = false;
-                if (webView != null) {
-                    webView.reload();
-                }
-                return true;
-            case 5:
-                prefs.edit().clear().apply();
-                credentialTried = false;
-                toast("已清除，正在重新加载");
-                if (webView != null) {
-                    webView.reload();
-                }
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
-        }
     }
 
     /**
