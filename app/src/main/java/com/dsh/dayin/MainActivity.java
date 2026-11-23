@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -14,6 +15,9 @@ import android.text.InputType;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.ViewGroup;
 import android.webkit.HttpAuthHandler;
 import android.webkit.WebChromeClient;
@@ -92,6 +96,10 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
+
+        // 内容按常规方式布局（不 edge-to-edge），只把状态栏隐藏掉：
+        // 这样正文不会钻到刘海/挖孔下面，也不需要自己算 inset。
+        applyImmersive();
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
@@ -384,6 +392,35 @@ public class MainActivity extends Activity {
             webView = null;
         }
         super.onDestroy();
+    }
+
+
+    /**
+     * 沉浸式：隐藏系统状态栏，保留底部导航条（否则返回手势会消失）。
+     * 状态栏被隐藏后从屏幕顶部下滑仍能临时唤出，所以看时间/通知不受影响。
+     * 来电、输入法、弹窗等会让系统重新显示状态栏，因此在 onWindowFocusChanged 里再收一次。
+     */
+    private void applyImmersive() {
+        Window window = getWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                controller.setSystemBarsBehavior(
+                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                controller.hide(WindowInsets.Type.statusBars());
+            }
+        } else {
+            window.getDecorView().setSystemUiVisibility(
+                    View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            applyImmersive();
+        }
     }
 
     private int dp(int value) {
