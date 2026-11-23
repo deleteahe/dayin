@@ -8,8 +8,9 @@ WebView 默认会直接取消这种请求，所以客户端接管了认证流程
 - WebView 加载站点，开启 JS / DOM Storage / Cookie 持久化
 - HTTP Basic 认证：`onReceivedHttpAuthRequest` 接管，首次打开弹窗输入账号
 - 凭据存本机 `SharedPreferences`（应用私有目录），**不写进代码、不进仓库**
-- 无标题栏（NoActionBar）+ 隐藏系统状态栏（沉浸式），整屏就是网页；
-  从屏幕顶部下滑仍可临时唤出状态栏看时间/通知；返回完全交给系统返回键/手势：
+- 无标题栏 + 真沉浸式：edge-to-edge，内容铺到挖孔/刘海底下，状态栏隐藏；
+  顶部不补 inset（网页顶到摄像头下），底部按导航条与输入法补 padding；
+  从屏幕顶部下滑仍可临时唤出状态栏；返回完全交给系统返回键/手势：
   先点站内 `#backBtn`，再退 WebView 历史，都没有才退出
 - 顶部细进度条、断网重试页
 - 站内链接留在 WebView，站外链接 / `mailto:` / `tel:` 交给系统

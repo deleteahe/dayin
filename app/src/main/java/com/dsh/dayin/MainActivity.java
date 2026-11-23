@@ -16,6 +16,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowManager;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.ViewGroup;
@@ -96,9 +97,9 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
+        enableEdgeToEdge(root);
 
-        // 内容按常规方式布局（不 edge-to-edge），只把状态栏隐藏掉：
-        // 这样正文不会钻到刘海/挖孔下面，也不需要自己算 inset。
+        // 关掉系统状态栏本身（内容已经 edge-to-edge 铺开了）。
         applyImmersive();
 
         WebSettings s = webView.getSettings();
@@ -400,6 +401,46 @@ public class MainActivity extends Activity {
      * 状态栏被隐藏后从屏幕顶部下滑仍能临时唤出，所以看时间/通知不受影响。
      * 来电、输入法、弹窗等会让系统重新显示状态栏，因此在 onWindowFocusChanged 里再收一次。
      */
+    /**
+     * 真正的沉浸式：内容铺满整屏，包括刘海/挖孔那一段。
+     *
+     * - `setDecorFitsSystemWindows(false)`：窗口不再为系统栏预留空间；
+     * - `layoutInDisplayCutoutMode = ALWAYS`：允许内容进入挖孔区域（不做 letterbox 留黑边）；
+     * - 顶部**故意不补** padding，网页直接顶到前置摄像头底下；
+     * - 只给底部补 padding（导航条与输入法取并集），免得正文被手势条和键盘盖住。
+     */
+    private void enableEdgeToEdge(final View root) {
+        Window window = getWindow();
+        WindowManager.LayoutParams lp = window.getAttributes();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false);
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lp.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        }
+        window.setAttributes(lp);
+
+        root.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
+            @Override
+            public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
+                int bottom;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    bottom = insets.getInsets(
+                            WindowInsets.Type.navigationBars() | WindowInsets.Type.ime()).bottom;
+                } else {
+                    bottom = insets.getSystemWindowInsetBottom();
+                }
+                if (v.getPaddingBottom() != bottom) {
+                    v.setPadding(0, 0, 0, bottom);
+                }
+                return insets;
+            }
+        });
+    }
+
     private void applyImmersive() {
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
